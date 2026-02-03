@@ -1,0 +1,80 @@
+# Template file for 'neovim-nightly'
+pkgname=neovim-nightly
+version=0.0
+revision=1
+# as per https://github.com/neovim/neovim/blob/master/cmake.deps/deps.txt
+_treesitter_c_version=0.24.1
+_treesitter_lua_version=0.4.1
+_treesitter_vim_version=0.8.0
+_treesitter_vimdoc_version=4.1.0
+_treesitter_query_version=0.8.0
+_treesitter_markdown_version=0.5.1
+build_style=cmake
+build_helper="qemu"
+configure_args="-DCOMPILE_LUA=OFF -DENABLE_TRANSLATIONS=ON -DPREFER_LUA=$(vopt_if luajit OFF ON)"
+hostmakedepends="gettext patchelf"
+makedepends="libuv-devel libluv-devel libutf8proc-devel tree-sitter-devel unibilium-devel
+ lua51-lpeg $(vopt_if luajit LuaJIT-devel lua51-devel)"
+short_desc="Fork of Vim aiming to improve user experience, plugins and GUIs"
+maintainer="eeriera <eerieraccoon@posteo.com>"
+license="Apache-2.0 AND Vim"
+homepage="https://neovim.io"
+changelog="https://github.com/neovim/neovim/releases"
+distfiles="https://github.com/neovim/neovim/archive/refs/tags/nightly.tar.gz
+ https://github.com/tree-sitter/tree-sitter-c/archive/refs/tags/v${_treesitter_c_version}.tar.gz>treesitter_c_${_treesitter_c_version}.tar.gz
+ https://github.com/tree-sitter-grammars/tree-sitter-lua/archive/refs/tags/v${_treesitter_lua_version}.tar.gz>treesitter_lua_${_treesitter_lua_version}.tar.gz
+ https://github.com/tree-sitter-grammars/tree-sitter-vim/archive/refs/tags/v${_treesitter_vim_version}.tar.gz>treesitter_vim_${_treesitter_vim_version}.tar.gz
+ https://github.com/neovim/tree-sitter-vimdoc/archive/refs/tags/v${_treesitter_vimdoc_version}.tar.gz>treesitter_vimdoc_${_treesitter_vimdoc_version}.tar.gz
+ https://github.com/tree-sitter-grammars/tree-sitter-query/archive/refs/tags/v${_treesitter_query_version}.tar.gz>treesitter_query_${_treesitter_query_version}.tar.gz
+ https://github.com/tree-sitter-grammars/tree-sitter-markdown/archive/refs/tags/v${_treesitter_markdown_version}.tar.gz>treesitter_markdown_${_treesitter_markdown_version}.tar.gz"
+checksum="00f878f1599f4bed06800e6b639c907896b3b4fb16a8b6c6638cfa539d13c6d4
+ 25dd4bb3dec770769a407e0fc803f424ce02c494a56ce95fedc525316dcf9b48
+ cef44b8773bde69d427b5e50ca95e417c86c0be91caa37a6782c90d6f529da70
+ aa0a45027408bc33da0f2244272dbdc0b4e71bd18f71e5b885f6f7cbae407338
+ 020e8f117f648c8697fca967995c342e92dbd81dab137a115cc7555207fbc84f
+ c2b23b9a54cffcc999ded4a5d3949daf338bebb7945dece229f832332e6e6a7d
+ acaffe5a54b4890f1a082ad6b309b600b792e93fc6ee2903d022257d5b15e216"
+
+skip_extraction="
+ treesitter_c_${_treesitter_c_version}.tar.gz
+ treesitter_lua_${_treesitter_lua_version}.tar.gz
+ treesitter_vim_${_treesitter_vim_version}.tar.gz
+ treesitter_vimdoc_${_treesitter_vimdoc_version}.tar.gz
+ treesitter_query_${_treesitter_query_version}.tar.gz
+ treesitter_markdown_${_treesitter_markdown_version}.tar.gz"
+
+build_options="luajit"
+build_options_default="luajit"
+
+alternatives="
+ vi:vi:/usr/bin/nvim
+ vi:vi.1:/usr/share/man/man1/nvim.1
+ vi:view:/usr/bin/nvim
+ vi:view.1:/usr/share/man/man1/nvim.1
+ vim:vim:/usr/bin/nvim
+ vim:vim.1:/usr/share/man/man1/nvim.1"
+
+# They want assertion
+CFLAGS=-UNDEBUG
+
+post_extract() {
+	for _distfile in ${skip_extraction}; do
+		vsrcextract -C .deps/build/src/${_distfile%_*} ${_distfile}
+	done
+}
+
+pre_configure() {
+	# build bundled treesitter parsers
+	cmake -S cmake.deps -B .deps -G Ninja -DUSE_BUNDLED=OFF -DUSE_BUNDLED_TS_PARSERS=ON
+	cmake --build .deps
+}
+
+post_install() {
+	vlicense LICENSE.txt
+
+	if [ "${CROSS_BUILD}" ]; then
+		patchelf --replace-needed \
+			${XBPS_CROSS_BASE}/usr/lib/lua/5.1/lpeg.so /usr/lib/lua/5.1/lpeg.so \
+			${DESTDIR}/usr/bin/nvim
+	fi
+}
